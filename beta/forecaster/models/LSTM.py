@@ -1,30 +1,37 @@
 
+import torch.nn as nn
+
 class LSTM_model():
     """
     Create and configure an LSTM model for stock price prediction.
-
-    :return: The configured LSTM model (keras.Sequential)
     """
-    def __init__(self, 
-    # Initialize a sequential model
-    model = Sequential()
 
-    # Add the first LSTM layer with 50 units, input shape, and return sequences
-    model.add(LSTM(units=50, return_sequences=True, input_shape=(x_train.shape[1], 5)))
-    # Add dropout to prevent overfitting
-    model.add(Dropout(0.2))
+    def __init__(self, windows_length = 60, num_features = 5, n_units = [50, 50, 50], n_layers = 3, dropout = 0.2):
+        """
+        Initialize layers
+        Input:
+        - num_features: number of features in the input data
+        - n_units: list containing the number of units for each LSTM layer 
+        - n_layers: number of LSTM layers
+        - dropout: dropout rate
 
-    # Add a second LSTM layer with 50 units and return sequences
-    model.add(LSTM(units=50, return_sequences=True))
-    # Add dropout to prevent overfitting
-    model.add(Dropout(0.2))
+        """
+        assert len(n_units) == n_layers, "The number of units must match the number of layers"
+        self.dropout = dropout
+        self.layers = [nn.LSTM(units=n_units[i], return_sequences=True, input_shape=(windows_length, num_features)) for i in range(n_layers)]
+        self.dense = nn.Dense(units=1)
+        self.act = nn.Dense()
 
-    # Add a third LSTM layer with 50 units
-    model.add(LSTM(units=50))
-    # Add dropout to prevent overfitting
-    model.add(Dropout(0.2))
+    def forward(self, x):
+        """
+        Forward pass
+        Input:
+        - x: input data of dimention (batch_size, windows_length, num_features)
 
-    # Add a dense output layer with one unit
-    model.add(Dense(units=1))
+        """
+        for layer in self.layers:
+            x = layer(x)
+            x = nn.Dropout(self.dropout)(x)
+        x = self.dense(x)
 
-    return model
+        return x
