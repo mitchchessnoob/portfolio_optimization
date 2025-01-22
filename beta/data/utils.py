@@ -14,7 +14,7 @@ def download_data_yf(tickers, start_date, end_date):
     - (str) start_date: start date of the data
     - (str) end_date: end date of the data
     """
-    data = yf.download(tickers, start=start_date, end=end_date)
+    data = yf.download(tickers=tickers, start=start_date, end=end_date, interval="1d", group_by='Ticker', auto_adjust=True, prepost=True, threads=True, proxy=None)
     data.dropna(inplace=True)
 
     # Reshape the DataFrame
