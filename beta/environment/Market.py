@@ -27,7 +27,7 @@ class Market():
         Returns: data regarding the last window_frame + 1 days
         """
         return self.data.loc[(self.data['Date'] >= self.current_day - dt.timedelta(days=window_frame)) &
-                         (self.data['date_sequential'] <= self.current_day)]
+                         (self.data['Date'] <= self.current_day)]
     
     def evolve(self):
         """
