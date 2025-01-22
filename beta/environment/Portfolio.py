@@ -2,6 +2,7 @@ import numpy as np
 
 
 class Portfolio():
+    
     def __init__(self, weights, cash, bonds_value, current_value,  transaction_cost = 0.02):
         """
         Creates a portfolio object that holds the portfolio data for the simulation.
