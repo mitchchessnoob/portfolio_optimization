@@ -10,7 +10,7 @@ class Market():
         - (int) n_assets: number of assets
         - (int) current_frame: current window frame
         """
-        assert "sequential_date" in data.columns, "The data must contain the column 'sequential_date'"
+        # assert "sequential_date" in data.columns, "The data must contain the column 'sequential_date'"
         self.data = data
         self.n_assets = n_assets
         self.current_frame = current_frame
