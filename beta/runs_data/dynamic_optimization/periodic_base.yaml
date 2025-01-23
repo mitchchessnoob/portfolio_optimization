@@ -7,7 +7,7 @@ defaults:
 # disable hydra outputs
 
 name: "base_agent" 
-method: "static_simulation"
+method: "periodic_allocation_simulation"
 
 data:
   yahoo_finance: True
@@ -25,7 +25,7 @@ data:
     - "JNJ"
 
 portfolio:
-  initial_weights: "uniform"
+  initial_weights: "random"
   starting_value: 1
   risk_free_rate: 0.03
   transaction_cost: 0.02
@@ -35,3 +35,4 @@ market:
 
 simulation:
   end_simulation_day: "2024-01-01"
+  reallocation_frequency: 10
