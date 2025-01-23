@@ -1,6 +1,4 @@
 import numpy as np
-
-
 class Portfolio():
     
     def __init__(self, weights, current_value, risk_free_rate = 0.03,  transaction_cost = 0.02):

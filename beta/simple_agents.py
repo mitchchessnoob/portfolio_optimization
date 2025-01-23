@@ -1,10 +1,7 @@
 import numpy as np
 import pandas as pd
-import yfinance as yf
-import os
-import matplotlib.pyplot as plt
 import datetime as dt
-from sklearn.preprocessing import MinMaxScaler
+
 
 from data.utils import download_data_yf
 import importlib
@@ -50,7 +47,7 @@ def static_agent_simulation(configs_path, initial_weights = None):
     """
     simulate
     """
-    mkt, ptf, end_simulation_day, configs  = create_environment(configs_path, initial_weights)
+    mkt, ptf, end_simulation_day, _  = create_environment(configs_path, initial_weights)
 
     metrics = {
         "days": [],

@@ -1,0 +1,45 @@
+defaults:
+  - _self_
+  - wandb: private.yaml
+  - override hydra/hydra_logging: disabled
+  - override hydra/job_logging: disabled
+
+# disable hydra outputs
+
+name: "base_agent" 
+method: "periodic_allocation_simulation"
+
+data:
+  yahoo_finance: True
+  data_path: "data/processed_data.csv"
+  start_date: "2020-01-01"
+  end_date: "2024-06-01"
+  tickers: 
+    - "AAPL"
+    - "MSFT"
+    - "AMZN"
+    - "GOOGL"
+    - "TSLA"
+    - "BRK-B"
+    - "JPM"
+    - "JNJ"
+
+portfolio:
+  initial_weights: "random"
+  starting_value: 1
+  risk_free_rate: 0.03
+  transaction_cost: 0.02
+
+market:
+  current_day: "2020-01-01"
+
+simulation:
+  end_simulation_day: "2024-01-01"
+  reallocation_frequency: 10
+
+optimization:
+  sampling: "normal"
+  n_samples: 100
+  risk_free_rate: 0.03
+  criterion: "sharpe_ratio"
+  scale: 0.6
