@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from beta.forecaster.models.estimators import get_criterion
+
+fit = get_criterion("sample_mean")
 class PortfolioOptimizer():
     def __init__(self, returns, sampling="uniform", num_portfolios=5000, risk_free_rate=0.02):
         assert sampling in ["uniform", "normal"], "Sampling must be in ['uniform', 'normal']"
@@ -12,11 +15,11 @@ class PortfolioOptimizer():
         self.portfolio_weights = []
         self.portfolio_expected_returns = []
         self.portfolio_volatilities = []
-        self.portfolio_sharpe_ratios = []
+        self.portfolio_performances = []
         self.sampling = sampling
 
 
-    def generate_random_portfolios(self, transaction_cost = 0.02, initial_guess = None, scale = 0.6):
+    def generate_random_portfolios(self, criterion,  transaction_cost = 0.02, initial_guess = None, scale = 0.6):
         if initial_guess is None:
             initial_guess = np.ones(self.num_assets) / self.num_assets
         np.random.seed(42)
@@ -30,25 +33,26 @@ class PortfolioOptimizer():
             weights /= np.sum(weights)
             weights /= np.sum(weights)
             self.portfolio_weights.append(weights)
-            expected_return = np.sum(weights * self.returns.mean()) * 252
+            expected_return = estimators.sample_mean(self.returns)@weights
             self.portfolio_expected_returns.append(expected_return)
-            volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
-            self.portfolio_volatilities.append(volatility)
-            sharpe_ratio = (expected_return - self.risk_free_rate - transaction_cost*np.sum(np.abs(initial_guess-weights)) ) / volatility
-            self.portfolio_sharpe_ratios.append(sharpe_ratio)
+            volatility = np.dot(weights, np.dot(estimators.sample_covariance(self.returns), weights))
 
-    def get_portfolio_performance(self, weights):
+            self.portfolio_volatilities.append(volatility)
+            performance = criterion(self.returns, weights, self.risk_free_rate)
+            self.portfolio_performances.append(performance)
+
+    def get_portfolio_performance(self, weights, criterion):
         weights = np.array(weights)
-        expected_return = np.sum(weights * self.returns.mean()) * 252
-        volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
-        sharpe_ratio = (expected_return - self.risk_free_rate) / volatility
-        return expected_return, volatility, sharpe_ratio
+        expected_return = estimators.sample_mean(self.returns)@weights
+        volatility = np.dot(weights, np.dot(estimators.sample_covariance(self.returns), weights))
+        performance = criterion(self.returns, weights, self.risk_free_rate)
+        return expected_return, volatility, performance
 
     def plot_efficient_frontier(self):
         portfolios = pd.DataFrame({
             'Return': self.portfolio_expected_returns,
             'Volatility': self.portfolio_volatilities,
-            'Sharpe Ratio': self.portfolio_sharpe_ratios
+            'Criterion': self.portfolio_performances
         })
 
         # Plot efficient frontier
@@ -61,3 +65,8 @@ class PortfolioOptimizer():
 
 
         return portfolios
+    
+    def optimal_weights(self):
+        assert len(self.portfolio_performances) > 0, "No portfolios generated"
+        index = np.argmax(self.portfolio_performances)
+        return self.portfolio_weights[index]

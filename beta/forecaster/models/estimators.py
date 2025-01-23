@@ -33,7 +33,7 @@ def sample_mean(data):
     Returns: 
      - (np.array) the sample mean of every asset
     """
-    return np.mean(data, axis=0)
+    return np.mean(data, axis=0)*255
 
 def sample_covariance(data):
     """
@@ -44,7 +44,7 @@ def sample_covariance(data):
     Returns: 
      - (np.array) the sample covariance matrix
     """
-    return np.cov(data.T)
+    return np.cov(data.T)*255
 
 def sharpe_ratio(data, weights, rf = 0.02):
     """
@@ -57,7 +57,7 @@ def sharpe_ratio(data, weights, rf = 0.02):
     Returns: 
      - (float) the sharpe ratio
     """
-    return (np.dot(np.mean(data),weights)*255 - rf)/(np.sqrt(255*np.dot(np.dot(weights, sample_covariance(data)), weights)))
+    return (np.dot(np.mean(data),weights)*255 - rf)/(np.sqrt(np.dot(np.dot(weights, sample_covariance(data)), weights)))
 
 
 def sortino_ratio(data, weights, rf = 0.02):
