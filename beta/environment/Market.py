@@ -20,7 +20,7 @@ class Market():
         self.n_assets = n_assets
         self.current_day = current_day
     
-    def current_day(self):
+    def today(self):
         """
         Get the current day.
         """
