@@ -19,6 +19,12 @@ class Market():
         self.data["Date"] = pd.to_datetime(self.data["Date"])
         self.n_assets = n_assets
         self.current_day = current_day
+    
+    def current_day(self):
+        """
+        Get the current day.
+        """
+        return self.current_day
 
     def get_data(self, window_frame):
         """
@@ -70,11 +76,12 @@ class Market():
         pivoted_data = data.pivot(index='Date', columns='Ticker', values='Pct_Change')
 
         # Optional: Rename columns to include "_pct_change" for clarity
-        pivoted_data.columns = [f"{ticker}_pct_change" for ticker in pivoted_data.columns]
+        pivoted_data.columns = [f"{ticker}" for ticker in pivoted_data.columns]
 
         # Reset the index if needed
         pivoted_data.reset_index(inplace=True)
-        return pivoted_data.dropcolumns('Date')
+
+        return pivoted_data.drop('Date', axis=1).dropna()
 
     def influence_portfolio(self, portfolio):
         """
