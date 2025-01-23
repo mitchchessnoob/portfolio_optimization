@@ -13,8 +13,6 @@ def get_criterion(criterion):
     """
     implemented = {
         "sharpe_ratio": sharpe_ratio,
-        "sample_mean": sample_mean,
-        "sample_covariance": sample_covariance,
         "sortino_ratio": sortino_ratio
     }
 
@@ -57,7 +55,8 @@ def sharpe_ratio(data, weights, rf = 0.02):
     Returns: 
      - (float) the sharpe ratio
     """
-    return (np.dot(np.mean(data),weights)*255 - rf)/(np.sqrt(np.dot(np.dot(weights, sample_covariance(data)), weights)))
+
+    return (np.dot(sample_mean(data),weights[1:])*255 + weights[0]*rf - rf)/((1-weights[0])*np.sqrt(np.dot(np.dot(weights[1:], sample_covariance(data)), weights[1:])))
 
 
 def sortino_ratio(data, weights, rf = 0.02):
@@ -71,4 +70,4 @@ def sortino_ratio(data, weights, rf = 0.02):
     Returns: 
      - (float) the sharpe ratio
     """
-    return (np.dot(np.mean(data),weights)*255 - rf)/(np.sqrt(255*np.dot(np.dot(weights, sample_covariance(data[data<0])), weights)))
+    return (np.dot(sample_mean(data),weights[1:])*255 + weights[0]*rf - rf)/((1-weights[0])*np.sqrt(255*np.dot(np.dot(weights[1:], sample_covariance(data[data<0])), weights[1:])))
