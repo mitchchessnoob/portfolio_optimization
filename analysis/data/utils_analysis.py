@@ -12,6 +12,7 @@ def download_data_yf(tickers, start_date, end_date):
     - (str) start_date: start date of the data
     - (str) end_date: end date of the data
     """
+    
     data = yf.download(tickers=tickers, start=start_date, end=end_date, interval="1d", group_by='Ticker', auto_adjust=True, prepost=True, threads=True, proxy=None)
     data.dropna(inplace=True)
 
@@ -19,6 +20,23 @@ def download_data_yf(tickers, start_date, end_date):
     data = data.stack(level=0).reset_index()
     data.rename(columns={'level_1': 'Ticker'}, inplace=True)
     return data
+
+def create_full_dataset(data, ESG_dataset):
+    """
+    Create the full dataset.
+    Inputs:
+    - (pd.DataFrame) data: market data
+    - (pd.DataFrame) ESG_values: ESG values
+    """
+    # Merge the data
+    ESG_dataset.rename(columns={'ticker': 'Ticker'}, inplace=True)
+    ESG_dataset['Ticker'] = ESG_dataset['Ticker'].str.upper()
+
+    
+    return data.join(ESG_dataset.set_index('Ticker'), on='Ticker')
+
+def get_aggregate_stats(data):
+    data
 
 def scale_data(data):
     """
@@ -40,25 +58,3 @@ def scale_data(data):
     # Apply scaling to each group
     data = data.groupby('Ticker', group_keys=False).apply(scale_group)
     return data, scalers
-
-def create_dataset_lstm(data, window_size, features):
-    """
-    Create the dataset for the LSTM model.
-    Inputs:
-    - (pd.DataFrame) data: market data
-    - (int) window_size: size of the window
-    - ([str]) features: list of features to use
-    """
-    x_train = []
-    y_train = []
-    for company in data["Ticker"].unique():
-        data_company = data[data["Ticker"] == company]
-        for i in range(window_size, len(data_company)):
-            x_train.append(data_company[i-window_size:i][features])
-            y_train.append(data_company[i:i+1]["Close"])
-
-    x_train, y_train = np.array(x_train), np.array(y_train)
-
-    # Reshape x_train to a 3D array with the appropriate dimensions for the LSTM model
-    x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], len(features)))
-    return x_train, y_train
