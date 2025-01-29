@@ -17,15 +17,38 @@ def data_vertical(data):
     
 
 
-def feature_engineering(data, rf):
-    #avg returns
+def feature_engineering(data, rf, mkt):
+    #mkt correlation
+    rets = data["Close"].pct_change().dropna()
+    correlations = np.array(rets.corrwith(mkt["SPY"].pct_change().dropna()))
+
+
+
+    #CAPM beta
+    merged_returns = rets.join(mkt["SPY"].pct_change().dropna(), how="inner") 
+
+    # Compute covariance of each asset with SPY
+    cov_with_spy = merged_returns.cov().iloc[:-1, -1] 
+
+    # Compute variance of SPY
+    spy_variance = merged_returns["SPY"].var()
+
+    # Compute beta for each asset
+    beta = cov_with_spy / spy_variance
+    beta.name = "Beta"
+    beta = np.array(beta)
     returns = data["Close"].pct_change().mean()*252
     returns = pd.DataFrame(returns)
     final_dataframe = returns.reset_index()
     final_dataframe = final_dataframe.rename(columns={final_dataframe.columns[1]:"Yavg_return"})
     #volatility
     final_dataframe["Yavg_volatility"] = np.array(data["Close"].pct_change().std()*np.sqrt(252))
+    #CAPM beta
+    final_dataframe["beta"] = beta
+    #mkt corr
+    final_dataframe["mkt_corr"] = correlations
 
+    
     dataset_vertical = data_vertical(data)
     dataset_vertical["daily_span"] = dataset_vertical["High"]- dataset_vertical["Low"]
     #daily_span
@@ -42,6 +65,8 @@ def feature_engineering(data, rf):
     #Curtosis
     final_dataframe["D_eCurtosis"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.kurtosis))
     final_dataframe["Sharpe_ratio"] = (np.array(final_dataframe["Yavg_return"]) - rf)/np.array(final_dataframe["Yavg_volatility"])
+
+    
     return final_dataframe
 
 
@@ -50,6 +75,7 @@ def feature_engineering(data, rf):
 def pipeline(start_date, end_date, rf = 0.02):
     snp500url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
     data_tab = pd.read_html(snp500url)
+    market = yf.download(tickers="SPY", start=start_date, end=end_date, auto_adjust=True)["Close"]
 
     tickers = data_tab[0][1:]['Symbol'].tolist()
 
@@ -93,7 +119,7 @@ def pipeline(start_date, end_date, rf = 0.02):
     print('\nNull values:', dataset.isnull().values.any())
     print('NaN values:', dataset.isna().values.any())
     print("\nCreating features")
-    fdata = feature_engineering(dataset, rf)
+    fdata = feature_engineering(dataset, rf, market)
 
     ESG = pd.read_csv(r"C:\Users\m.narese\Desktop\THESIS\REPO\portfolio_optimization\analysis\datasets\1\ESG_data.csv")
     stock_data = create_full_dataset(fdata, esg_df)
@@ -122,6 +148,7 @@ def pipeline(start_date, end_date, rf = 0.02):
 def create_portfolio_clustered(start_date, end_date, segments_df, tickers, w = "uniform"):
 
     portfolio_data_trained = yf.download(tickers=tickers, start=start_date, end=end_date, auto_adjust=True)["Close"]
+
 
     prices_dataset = pd.DataFrame(portfolio_data_trained)
     missing_frac = prices_dataset.isnull().mean().sort_values(ascending=False)
