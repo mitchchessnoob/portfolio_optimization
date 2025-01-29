@@ -17,7 +17,7 @@ def data_vertical(data):
     
 
 
-def feature_engineering(data):
+def feature_engineering(data, rf):
     #avg returns
     returns = data["Close"].pct_change().mean()*252
     returns = pd.DataFrame(returns)
@@ -41,13 +41,13 @@ def feature_engineering(data):
     final_dataframe["D_eCVaR"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.expected_shortfall))/(np.array(dataset_vertical.groupby("Ticker")["Close"].mean()))
     #Curtosis
     final_dataframe["D_eCurtosis"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.kurtosis))
-
+    final_dataframe["Sharpe_ratio"] = (np.array(final_dataframe["Yavg_return"]) - rf)/np.array(final_dataframe["Yavg_volatility"])
     return final_dataframe
 
 
 
 
-def pipeline(start_date, end_date):
+def pipeline(start_date, end_date, rf = 0.02):
     snp500url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
     data_tab = pd.read_html(snp500url)
 
@@ -90,10 +90,10 @@ def pipeline(start_date, end_date):
     drop_list = sorted(list(missing_frac[missing_frac > 0.2].index))
     dataset.drop(columns=drop_list, axis = 1, inplace=True)
     dataset.bfill(axis='index', inplace=True)
-    print('Null values:', dataset.isnull().values.any())
+    print('\nNull values:', dataset.isnull().values.any())
     print('NaN values:', dataset.isna().values.any())
     print("\nCreating features")
-    fdata = feature_engineering(dataset)
+    fdata = feature_engineering(dataset, rf)
 
     ESG = pd.read_csv(r"C:\Users\m.narese\Desktop\THESIS\REPO\portfolio_optimization\analysis\datasets\1\ESG_data.csv")
     stock_data = create_full_dataset(fdata, esg_df)
@@ -115,11 +115,11 @@ def pipeline(start_date, end_date):
     print(f"The dataset has {stock_data.shape[1]-1} predictors:")
     for i in stock_data.columns:
         print(i)
-    print("\n\nDataset creation finished:\n")
+    print("\n\nDataset creation finished\n")
     return stock_data
 
 
-def create_portfolio_clustered(start_date, end_date, segments_df, tickers):
+def create_portfolio_clustered(start_date, end_date, segments_df, tickers, w = "uniform"):
 
     portfolio_data_trained = yf.download(tickers=tickers, start=start_date, end=end_date, auto_adjust=True)["Close"]
 
@@ -144,6 +144,7 @@ def create_portfolio_clustered(start_date, end_date, segments_df, tickers):
     ticker_segments = pd.DataFrame({
     "Ticker": segments_df["Ticker"],
     "Sector": segments_df["Sector"],
+    "Sharpe_ratio": segments_df["Sharpe_ratio"]
     })
 
     # 1. Reshape daily_prices to long format
@@ -156,11 +157,20 @@ def create_portfolio_clustered(start_date, end_date, segments_df, tickers):
     merged_data["Daily_Return"] = merged_data.groupby("Ticker")["Close"].pct_change()
     merged_data = merged_data.dropna()
     # 4. Group by Date and K_means_segments to calculate equally weighted portfolio returns
-    portfolio_returns = (
-        merged_data.groupby(["Date", "Sector"])["Daily_Return"]
-        .mean()  # Equally weighted
-        .reset_index()
-    )
+    if w == "sharpe":
+        portfolio_returns = (
+            merged_data.groupby(["Date", "Sector"]).apply(
+                lambda x: np.average(x["Daily_Return"], weights=x["Sharpe_ratio"])
+            ).reset_index()
+        )
+
+        portfolio_returns=portfolio_returns.rename(columns={0:"Daily_Return"})
+    else:
+        portfolio_returns = (
+            merged_data.groupby(["Date", "Sector"])["Daily_Return"]
+            .mean()  # Equally weighted
+            .reset_index()
+        )
 
     # 5. Pivot the data for better visualization (optional)
     portfolio_returns = portfolio_returns.pivot(
