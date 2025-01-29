@@ -5,6 +5,8 @@ import json
 import yfinance as yf
 from analysis.data.utils_analysis import create_full_dataset
 import quantstats as qs
+import warnings
+warnings.filterwarnings("ignore")
 
 def data_vertical(data):
     dataset_vertical = data.stack(level=1).reset_index()
@@ -113,7 +115,56 @@ def pipeline(start_date, end_date):
     print(f"The dataset has {stock_data.shape[1]-1} predictors:")
     for i in stock_data.columns:
         print(i)
-    print("\n\nDataset creation finished:\n", stock_data.info())
+    print("\n\nDataset creation finished:\n")
     return stock_data
 
-    
+
+def create_portfolio_clustered(start_date, end_date, segments_df, tickers):
+
+    portfolio_data_trained = yf.download(tickers=tickers, start=start_date, end=end_date, auto_adjust=True)["Close"]
+
+    prices_dataset = pd.DataFrame(portfolio_data_trained)
+    missing_frac = prices_dataset.isnull().mean().sort_values(ascending=False)
+    drop_list = sorted(list(missing_frac[missing_frac > 0.1].index))
+    prices_dataset.drop(columns=drop_list, axis = 1, inplace=True)
+    prices_dataset.bfill(axis='index', inplace=True)
+    print('Null values:', prices_dataset.isnull().values.any())
+    prices_dataset = prices_dataset.reset_index()
+
+    for asset in prices_dataset.columns[1:]:
+        prices_dataset[asset] = prices_dataset[asset].pct_change()
+    prices_dataset = prices_dataset.dropna()
+
+    portfolio_dataset = pd.DataFrame(portfolio_data_trained)
+    missing_frac = portfolio_dataset.isnull().mean().sort_values(ascending=False)
+    drop_list = sorted(list(missing_frac[missing_frac > 0.1].index))
+    portfolio_dataset.drop(columns=drop_list, axis = 1, inplace=True)
+    portfolio_dataset.bfill(axis='index', inplace=True)
+    print('Null values:', portfolio_dataset.isnull().values.any())
+    ticker_segments = pd.DataFrame({
+    "Ticker": segments_df["Ticker"],
+    "Sector": segments_df["Sector"],
+    })
+
+    # 1. Reshape daily_prices to long format
+    portfolio_dataset_long = portfolio_dataset.reset_index().melt(id_vars="Date", var_name="Ticker", value_name="Close")
+
+    # 2. Merge with ticker_segments to get segment information
+    merged_data = pd.merge(portfolio_dataset_long, ticker_segments, on="Ticker")
+
+    # 3. Calculate daily returns for each ticker
+    merged_data["Daily_Return"] = merged_data.groupby("Ticker")["Close"].pct_change()
+    merged_data = merged_data.dropna()
+    # 4. Group by Date and K_means_segments to calculate equally weighted portfolio returns
+    portfolio_returns = (
+        merged_data.groupby(["Date", "Sector"])["Daily_Return"]
+        .mean()  # Equally weighted
+        .reset_index()
+    )
+
+    # 5. Pivot the data for better visualization (optional)
+    portfolio_returns = portfolio_returns.pivot(
+        index="Date", columns="Sector", values="Daily_Return"
+    ).dropna()
+
+    return portfolio_returns, prices_dataset
