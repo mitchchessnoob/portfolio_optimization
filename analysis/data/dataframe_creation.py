@@ -37,6 +37,7 @@ def feature_engineering(data, rf, mkt):
     beta = cov_with_spy / spy_variance
     beta.name = "Beta"
     beta = np.array(beta)
+    
     returns = data["Close"].pct_change().mean()*252
     returns = pd.DataFrame(returns)
     final_dataframe = returns.reset_index()
