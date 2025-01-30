@@ -172,7 +172,8 @@ def create_portfolio_clustered(start_date, end_date, segments_df, tickers, w = "
     ticker_segments = pd.DataFrame({
     "Ticker": segments_df["Ticker"],
     "Sector": segments_df["Sector"],
-    "Sharpe_ratio": segments_df["Sharpe_ratio"]
+    "Sharpe_ratio": segments_df["Sharpe_ratio"],
+    "volatility": segments_df["Yavg_volatility"]
     })
 
     # 1. Reshape daily_prices to long format
@@ -186,6 +187,7 @@ def create_portfolio_clustered(start_date, end_date, segments_df, tickers, w = "
     merged_data = merged_data.dropna()
     # 4. Group by Date and K_means_segments to calculate equally weighted portfolio returns
     if w == "sharpe":
+        print("Cluster Portfolios based on sharpe ratio")
         portfolio_returns = (
             merged_data.groupby(["Date", "Sector"]).apply(
                 lambda x: np.average(x["Daily_Return"], weights=x["Sharpe_ratio"])
@@ -193,7 +195,18 @@ def create_portfolio_clustered(start_date, end_date, segments_df, tickers, w = "
         )
 
         portfolio_returns=portfolio_returns.rename(columns={0:"Daily_Return"})
+
+    elif w.lower() == "volatility":
+        print("Cluster Portfolios based on volatility")
+        portfolio_returns = (
+            merged_data.groupby(["Date", "Sector"]).apply(
+                lambda x: np.average(x["Daily_Return"], weights=1/x["volatility"])
+            ).reset_index()
+        )
+
+        portfolio_returns=portfolio_returns.rename(columns={0:"Daily_Return"})
     else:
+        print("Cluster Portfolios uniformly built among assets")
         portfolio_returns = (
             merged_data.groupby(["Date", "Sector"])["Daily_Return"]
             .mean()  # Equally weighted
