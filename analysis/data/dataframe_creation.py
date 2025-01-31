@@ -56,15 +56,42 @@ def feature_engineering(data, rf, mkt):
     final_dataframe["Davg_span"] = np.array(dataset_vertical.groupby("Ticker")["daily_span"].mean())
     #traded volume
     final_dataframe["Davg_volume"] = np.array(dataset_vertical.groupby("Ticker")["Volume"].mean())
-    #skewness
-    final_dataframe["D_eSkewness"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.skew))
+    #skewness and kurtosis
+    dataset_vertical["Returns"] = dataset_vertical.groupby("Ticker")["Close"].pct_change()
+
+    # final_dataframe["D_eCurtosis"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.kurtosis))
+    # final_dataframe["D_eSkewness"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.skew))
+    kurtosis_dict = dataset_vertical.groupby("Ticker")["Returns"].apply(lambda x: qs.stats.kurtosis(x.dropna()))  
+    skewness_dict = dataset_vertical.groupby("Ticker")["Returns"].apply(lambda x: qs.stats.skew(x.dropna()))
+
+    # Step 3: Convert to DataFrame
+    stats_df = pd.DataFrame({"Ticker": kurtosis_dict.index, "Davg_Kurtosis": kurtosis_dict.values, "Davg_Skewness": skewness_dict.values})
+
+
+    final_dataframe = final_dataframe.merge(stats_df, on="Ticker")
 
     #VaR
-    final_dataframe["D_eVaR"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.value_at_risk))/(np.array(dataset_vertical.groupby("Ticker")["Close"].mean()))
+    var_dict = dataset_vertical.groupby("Ticker")["Returns"].apply(lambda x: qs.stats.value_at_risk(x.dropna()))
+
+    var_df = pd.DataFrame(var_dict).reset_index()
+    var_df.columns = ["Ticker", "D_eVaR"]
+
+    # mean_abs_returns = dataset_vertical.groupby("Ticker")["Returns"].apply(lambda x: x.abs().mean())
+    final_dataframe["D_eVaR"]  = var_df["D_eVaR"]
+    # final_dataframe["D_eVaR"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.value_at_risk))/(np.array(dataset_vertical.groupby("Ticker")["Close"].mean()))
+    
     #CVaR
-    final_dataframe["D_eCVaR"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.expected_shortfall))/(np.array(dataset_vertical.groupby("Ticker")["Close"].mean()))
-    #Curtosis
-    final_dataframe["D_eCurtosis"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.kurtosis))
+    cvar_dict = dataset_vertical.groupby("Ticker")["Returns"].apply(lambda x: qs.stats.expected_shortfall(x.dropna()))
+
+    # Step 3: Convert dictionary to DataFrame
+    cvar_df = pd.DataFrame(cvar_dict).reset_index()
+    cvar_df.columns = ["Ticker", "D_eCVaR"]
+
+    
+    final_dataframe["D_eCVaR"]  = cvar_df["D_eCVaR"]
+    # final_dataframe["D_eCVaR"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.expected_shortfall))/(np.array(dataset_vertical.groupby("Ticker")["Close"].mean()))
+    
+    #Sharpe Ratio
     final_dataframe["Sharpe_ratio"] = (np.array(final_dataframe["Yavg_return"]) - rf)/np.array(final_dataframe["Yavg_volatility"])
 
     
@@ -115,6 +142,11 @@ def pipeline(start_date, end_date, rf = 0.02):
     dataset = pd.DataFrame(raw)
     missing_frac = dataset.isnull().mean().sort_values(ascending=False)
     drop_list = sorted(list(missing_frac[missing_frac > 0.2].index))
+    print(f"\nThe following tickers had more than 20% of NaN values, therefore they're removed:")
+    jj = set()
+    for (_, i) in drop_list:
+        jj.add(i)
+    print(jj)
     dataset.drop(columns=drop_list, axis = 1, inplace=True)
     dataset.bfill(axis='index', inplace=True)
     print('\nNull values:', dataset.isnull().values.any())
@@ -139,7 +171,7 @@ def pipeline(start_date, end_date, rf = 0.02):
                                         "total_grade",
                                         "total_level"])
     print(f"The dataset has {stock_data.shape[0]} assets")
-    print(f"The dataset has {stock_data.shape[1]-1} predictors:")
+    print(f"The dataset has {stock_data.shape[1]-2} predictors:")
     for i in stock_data.columns:
         print(i)
     print("\n\nDataset creation finished\n")
