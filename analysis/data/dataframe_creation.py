@@ -192,8 +192,11 @@ def pipeline(start_date, end_date, rf = 0.02):
                                         "total_score",
                                         "total_grade",
                                         "total_level"])
+    
+    stock_data = stock_data.dropna(thresh=len(stock_data.columns)-1)
+    print(f"\n\nRemoving stocks that have more than one NaN column\n\n")
     print(f"The dataset has {stock_data.shape[0]} assets")
-    print(f"The dataset has {stock_data.shape[1]-2} predictors:")
+    print(f"The dataset has {stock_data.shape[1]-1} predictors:")
     for i in stock_data.columns:
         print(i)
     print("\n\nDataset creation finished\n")
