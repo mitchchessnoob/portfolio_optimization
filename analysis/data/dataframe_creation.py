@@ -21,22 +21,6 @@ def feature_engineering(data, rf, mkt):
     #mkt correlation
     rets = data["Close"].pct_change().dropna()
     correlations = np.array(rets.corrwith(mkt["SPY"].pct_change().dropna()))
-
-
-
-    #CAPM beta
-    merged_returns = rets.join(mkt["SPY"].pct_change().dropna(), how="inner") 
-
-    # Compute covariance of each asset with SPY
-    cov_with_spy = merged_returns.cov().iloc[:-1, -1] 
-
-    # Compute variance of SPY
-    spy_variance = merged_returns["SPY"].var()
-
-    # Compute beta for each asset
-    beta = cov_with_spy / spy_variance
-    beta.name = "Beta"
-    beta = np.array(beta)
     
     returns = data["Close"].pct_change().mean()*252
     returns = pd.DataFrame(returns)
@@ -44,12 +28,22 @@ def feature_engineering(data, rf, mkt):
     final_dataframe = final_dataframe.rename(columns={final_dataframe.columns[1]:"Yavg_return"})
     #volatility
     final_dataframe["Yavg_volatility"] = np.array(data["Close"].pct_change().std()*np.sqrt(252))
-    #CAPM beta
-    final_dataframe["beta"] = beta
     #mkt corr
     final_dataframe["mkt_corr"] = correlations
 
-    
+    #Last 1 year momentum
+    latest_date = data.index.max()
+
+
+    one_year_ago = latest_date - pd.DateOffset(years=1)
+
+
+    df_last_year = data[data.index >= one_year_ago]["Close"]
+    def compute_momentum(series):
+        return ((series.iloc[-1] - series.iloc[0]) / series.iloc[0]) * 100
+
+    final_dataframe["1Y_momentum"] = np.array(df_last_year.apply(compute_momentum))
+    ####
     dataset_vertical = data_vertical(data)
     dataset_vertical["daily_span"] = dataset_vertical["High"]- dataset_vertical["Low"]
     #daily_span
@@ -59,14 +53,10 @@ def feature_engineering(data, rf, mkt):
     #skewness and kurtosis
     dataset_vertical["Returns"] = dataset_vertical.groupby("Ticker")["Close"].pct_change()
 
-    # final_dataframe["D_eCurtosis"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.kurtosis))
-    # final_dataframe["D_eSkewness"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.skew))
     kurtosis_dict = dataset_vertical.groupby("Ticker")["Returns"].apply(lambda x: qs.stats.kurtosis(x.dropna()))  
     skewness_dict = dataset_vertical.groupby("Ticker")["Returns"].apply(lambda x: qs.stats.skew(x.dropna()))
 
-    # Step 3: Convert to DataFrame
     stats_df = pd.DataFrame({"Ticker": kurtosis_dict.index, "Davg_Kurtosis": kurtosis_dict.values, "Davg_Skewness": skewness_dict.values})
-
 
     final_dataframe = final_dataframe.merge(stats_df, on="Ticker")
 
@@ -75,26 +65,19 @@ def feature_engineering(data, rf, mkt):
 
     var_df = pd.DataFrame(var_dict).reset_index()
     var_df.columns = ["Ticker", "D_eVaR"]
+    final_dataframe["D_eVaR"]  = var_df["D_eVaR"] 
 
-    # mean_abs_returns = dataset_vertical.groupby("Ticker")["Returns"].apply(lambda x: x.abs().mean())
-    final_dataframe["D_eVaR"]  = var_df["D_eVaR"]
-    # final_dataframe["D_eVaR"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.value_at_risk))/(np.array(dataset_vertical.groupby("Ticker")["Close"].mean()))
-    
     #CVaR
     cvar_dict = dataset_vertical.groupby("Ticker")["Returns"].apply(lambda x: qs.stats.expected_shortfall(x.dropna()))
 
-    # Step 3: Convert dictionary to DataFrame
     cvar_df = pd.DataFrame(cvar_dict).reset_index()
     cvar_df.columns = ["Ticker", "D_eCVaR"]
 
-    
     final_dataframe["D_eCVaR"]  = cvar_df["D_eCVaR"]
-    # final_dataframe["D_eCVaR"] = np.array(dataset_vertical.groupby("Ticker")["Close"].apply(qs.stats.expected_shortfall))/(np.array(dataset_vertical.groupby("Ticker")["Close"].mean()))
     
     #Sharpe Ratio
     final_dataframe["Sharpe_ratio"] = (np.array(final_dataframe["Yavg_return"]) - rf)/np.array(final_dataframe["Yavg_volatility"])
 
-    
     return final_dataframe
 
 
@@ -114,10 +97,11 @@ def pipeline(start_date, end_date, rf = 0.02):
     location = r"C:\Users\m.narese\Desktop\THESIS\REPO\portfolio_optimization\analysis\datasets\esg_data.json"
 
     with open(location, "r") as file:
-        esg_data = json.load(file)  # Parse JSON into a Python dictionary or list
+        esg_data = json.load(file)  
 
     rows = []
     for entry in esg_data:
+
         ticker = entry['ticker']
         esgScores = entry.get('esgScores')
         if esgScores:
@@ -136,8 +120,48 @@ def pipeline(start_date, end_date, rf = 0.02):
                 'socialScore': None,
                 'governanceScore': None
             })
-    # Create DataFrame
+
     esg_df = pd.DataFrame(rows)
+
+    location = r"C:\Users\m.narese\Desktop\THESIS\REPO\portfolio_optimization\analysis\datasets\company_data.json"
+
+    with open(location, "r") as file:
+        company_data = json.load(file)  
+
+    rows = []
+    for ticker in company_data:
+        
+
+        try:
+            rows.append({
+                'ticker': ticker,
+                'beta': company_data[ticker].get('beta'),
+                'ROA': company_data[ticker].get('returnOnAssets'),
+                'ROE': company_data[ticker].get('returnOnEquity'),
+                'est_ROI': company_data[ticker].get('netIncomeToCommon')/company_data[ticker].get('marketCap'),
+                'profitMargins': company_data[ticker].get('profitMargins'),
+                'P/B': company_data[ticker].get('priceToBook'),
+                'earningsGrowth': company_data[ticker].get('earningsGrowth'),
+                'forwardPE': company_data[ticker].get('forwardPE'),
+            })
+        except TypeError:
+            print(f"Income. {company_data[ticker].get('netIncomeToCommon')}")
+            print(f"MktCap. {company_data[ticker].get('marketCap')}")
+            print(f"Ticker: {ticker}")
+            rows.append({
+                'ticker': ticker,
+                'beta': company_data[ticker].get('beta'),
+                'ROA': company_data[ticker].get('returnOnAssets'),
+                'ROE': company_data[ticker].get('returnOnEquity'),
+                'est_ROI': None,
+                'profitMargins': company_data[ticker].get('profitMargins'),
+                'P/B': company_data[ticker].get('priceToBook'),
+                'earningsGrowth': company_data[ticker].get('earningsGrowth'),
+                'forwardPE': company_data[ticker].get('forwardPE'),
+            })
+    
+        
+    company_df = pd.DataFrame(rows)
 
     dataset = pd.DataFrame(raw)
     missing_frac = dataset.isnull().mean().sort_values(ascending=False)
@@ -157,6 +181,7 @@ def pipeline(start_date, end_date, rf = 0.02):
     ESG = pd.read_csv(r"C:\Users\m.narese\Desktop\THESIS\REPO\portfolio_optimization\analysis\datasets\1\ESG_data.csv")
     stock_data = create_full_dataset(fdata, esg_df)
     stock_data = create_full_dataset(stock_data, ESG)
+    stock_data = create_full_dataset(stock_data, company_df)
     stock_data = stock_data.drop(columns=["logo", "name", "weburl", "exchange", "last_processing_date", "cik", "currency", 
                                         "environment_grade",
                                         "environment_level",
@@ -208,16 +233,13 @@ def create_portfolio_clustered(start_date, end_date, segments_df, tickers, w = "
     "volatility": segments_df["Yavg_volatility"]
     })
 
-    # 1. Reshape daily_prices to long format
     portfolio_dataset_long = portfolio_dataset.reset_index().melt(id_vars="Date", var_name="Ticker", value_name="Close")
 
-    # 2. Merge with ticker_segments to get segment information
     merged_data = pd.merge(portfolio_dataset_long, ticker_segments, on="Ticker")
 
-    # 3. Calculate daily returns for each ticker
     merged_data["Daily_Return"] = merged_data.groupby("Ticker")["Close"].pct_change()
     merged_data = merged_data.dropna()
-    # 4. Group by Date and K_means_segments to calculate equally weighted portfolio returns
+
     if w == "sharpe":
         print("Cluster Portfolios based on sharpe ratio")
         portfolio_returns = (
@@ -245,7 +267,6 @@ def create_portfolio_clustered(start_date, end_date, segments_df, tickers, w = "
             .reset_index()
         )
 
-    # 5. Pivot the data for better visualization (optional)
     portfolio_returns = portfolio_returns.pivot(
         index="Date", columns="Sector", values="Daily_Return"
     ).dropna()
