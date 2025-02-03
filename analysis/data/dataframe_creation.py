@@ -145,9 +145,6 @@ def pipeline(start_date, end_date, rf = 0.02):
                 'forwardPE': company_data[ticker].get('forwardPE'),
             })
         except TypeError:
-            print(f"Income. {company_data[ticker].get('netIncomeToCommon')}")
-            print(f"MktCap. {company_data[ticker].get('marketCap')}")
-            print(f"Ticker: {ticker}")
             rows.append({
                 'ticker': ticker,
                 'beta': company_data[ticker].get('beta'),
